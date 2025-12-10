@@ -1,10 +1,13 @@
+from sklearn.experimental import enable_iterative_imputer
+
 from cancerclass import utils
 from cancerclass import bayes
 from cancerclass.impute import DreamAIImputer
 from cancerclass.metrics import calculate_nrmse, calculate_f1, calculate_accuracy,run_masking_experiment
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-from sklearn.experimental import enable_iterative_imputer
 from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, StandardScaler
 from sklearn.impute import IterativeImputer, SimpleImputer
 from sklearn.pipeline import make_pipeline
@@ -58,18 +61,13 @@ def train_pipeline(
     classifier = __classification[classifier](**classifier_kwargs)
 
     pipeline = make_pipeline(imputer, preprocessor, classifier)
-    pipeline.fit(X, Y)
-
-    return pipeline
+    return pipeline.fit(X, Y)
 
 def accuracy(model, X_test: np.ndarray, Y_test: np.ndarray, metric: str):
     metric = __metrics[metric]
     Y_pred = model.predict(X_test)
 
     return metric(Y_pred, Y_test)
-
-def analysis_pipeline(model, data: tuple, metric: str):
-    pass
 
 def benchmark_methods(X_train, Y_train, X_test, Y_test, methods=['mean', 'dream']):
     """
@@ -112,3 +110,32 @@ def benchmark_methods(X_train, Y_train, X_test, Y_test, methods=['mean', 'dream'
     print(df_results)
     
     return df_results
+
+def __heatmap(data: np.ndarray, ax, categories=False):
+    sns.heatmap(data, ax=ax, vmin=0.0, vmax=1.0, cmap='bwr', annot=True, xticklabels=categories, yticklabels=False, fmt=".2f")
+
+def analysis_pipeline(model, data: tuple, metric: str, category_names: list):
+    X_train,X_test,Y_train,Y_test = data
+    categories = set(category_names)
+    Y_trainp = model.predict(X_train)[:,None]
+    Y_testp  = model.predict(X_test)[:,None]
+    train_accuracy = np.sum(Y_trainp == Y_train) / len(Y_train)
+    test_accuracy  = np.sum(Y_testp == Y_test) / len(Y_test)
+    try: 
+        train_prob = model.predict_proba(X_train)
+        test_prob  = model.predict_proba(X_test)
+        fig,ax = plt.subplots(1,2, figsize=(10,12), gridspec_kw={'width_ratios': [4,1]})
+        ax[0].set_title("Training confidence")
+        __heatmap(train_prob, ax[0], categories)
+        ax[1].set_title(f"Accuracy {train_accuracy*100}%")
+        __heatmap(Y_trainp == Y_train, ax[1])
+
+        fig,ax = plt.subplots(1,2, figsize=(10,12), gridspec_kw={'width_ratios': [4,1]})
+        ax[0].set_title("Testing confidence")
+        __heatmap(test_prob, ax[0], categories)
+        ax[1].set_title(f"Accuracy {test_accuracy*100}%")
+        __heatmap(Y_testp == Y_test, ax[1])
+
+    except Exception as e:
+        print(f"Warning in probabilities: {e}")
+        pass

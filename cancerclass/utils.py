@@ -3,9 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import OrdinalEncoder
 
-def nup(X):
-    return X.detach().numpy()
-
 def identity_transform(X):
     return X
 
@@ -17,7 +14,15 @@ def ensure_numpy(X):
     else:
         return np.array(X)
 
-def ohe_data(X):
+def ohe_data(X) -> np.ndarray:
+    """Ordinally encode labels for categories
+
+    Args:
+        X: Labels of any type that need to be encoded of shape (N,)
+
+    Returns:
+        np.ndarray: Encoded labels as integers
+    """
     enc = OrdinalEncoder()
     X = ensure_numpy(X).reshape(-1, 1)
     return enc.fit_transform(X)
@@ -36,3 +41,10 @@ def build_labels(label_list: list) -> tuple[np.ndarray, list, dict]:
     label2color = dict(zip(unique_labels, colors))
     point_colors = [label2color[l] for l in label_list]
     return np.array(point_colors), unique_labels, label2color
+
+def plot_heatmap(ax, data, vmin=0.0, vmax=1.0):
+    ax.imshow(data, vmin=vmin, vmax=vmax, cmap='bwr')
+    for i in range(len(data[0])):
+        for j in range(len(data[1])):
+            text = ax.text(j, i, np.round(data[i, j],2),
+                            ha="center", va="center", color="w")

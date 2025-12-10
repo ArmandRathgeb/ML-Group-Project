@@ -4,3 +4,4 @@ from .bayes import *
 from .pipeline import *
 from .utils import *
 from .impute import *
+from .metrics import *

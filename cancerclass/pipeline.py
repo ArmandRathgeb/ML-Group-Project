@@ -1,6 +1,6 @@
 from cancerclass import utils
 from cancerclass import bayes
-
+from cancerclass.impute import DreamAIImputer
 import numpy as np
 
 from sklearn.experimental import enable_iterative_imputer
@@ -15,7 +15,7 @@ __imputation = {
     'none' : FunctionTransformer(utils.identity_transform),
     'mean' : SimpleImputer(),
     'mice' : IterativeImputer(max_iter=30),
-    #'DREAM': 
+    'dream': DreamAIImputer(),
 }
 
 __preprocessor = {
@@ -40,7 +40,7 @@ __metrics = {
 def train_pipeline(
         X: np.ndarray,
         Y: np.ndarray,
-        imputation_type: str = 'mice',
+        imputation_type: str = 'dream',
         return_imputed_data: bool = False,
         preprocessing_step: str = '01',
         classifier: str = 'naivebayes',

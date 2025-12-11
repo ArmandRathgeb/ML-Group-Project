@@ -48,3 +48,27 @@ def plot_heatmap(ax, data, vmin=0.0, vmax=1.0):
         for j in range(len(data[1])):
             text = ax.text(j, i, np.round(data[i, j],2),
                             ha="center", va="center", color="w")
+            
+
+def filter_by_missingness(df: pd.DataFrame, threshold: float = 0.5) -> pd.DataFrame:
+    """
+    Filters out rows (proteins) that have too many missing values.
+    
+    Args:
+        df: The proteomics dataframe (Rows=Proteins, Cols=Samples)
+        threshold: Max allowed fraction of missing values (default 0.5)
+    
+    Returns:
+        pd.DataFrame: The filtered dataframe
+    """
+    # Calculate missing ratio per row (axis=1)
+    missing_ratio = df.isna().mean(axis=1)
+    
+    # Filter
+    df_filtered = df[missing_ratio <= threshold]
+    
+    print(f"[Preprocessing] Original proteins: {df.shape[0]}")
+    print(f"[Preprocessing] Kept proteins:     {df_filtered.shape[0]}")
+    print(f"[Preprocessing] Dropped:           {df.shape[0] - df_filtered.shape[0]}")
+    
+    return df_filtered

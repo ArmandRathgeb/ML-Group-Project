@@ -33,7 +33,7 @@ def run_masking_experiment(X, imputer_model, mask_fraction=0.1, seed=42):
     
     # Create random mask
     np.random.seed(seed)
-    mask = np.random.rand(n_samples, n_features) < mask_fraction
+    mask = (np.random.rand(n_samples, n_features) < mask_fraction) & (~np.isnan(X))
     X_masked[mask] = np.nan
     
     # Run Imputation

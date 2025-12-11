@@ -22,6 +22,8 @@ def calculate_f1(y_true, y_pred, average='weighted'):
 def calculate_accuracy(y_true, y_pred):
     return accuracy_score(y_true, y_pred)
 
+def categorical_accuracy(y_true, y_pred):
+    return np.sum(y_true == y_pred) / len(y_true)
 
 def run_masking_experiment(X, imputer_model, mask_fraction=0.1, seed=42):
     """

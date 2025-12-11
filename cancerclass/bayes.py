@@ -1,6 +1,7 @@
 from sklearn.base import BaseEstimator
 import numpy as np
 import pymc as pm
+import pytensor as pt
 import arviz as az
 from scipy.special import softmax, logit
 from cancerclass import utils
@@ -34,8 +35,8 @@ class BayesLogisticRegression(BaseEstimator):
             likelihood: str       = 'categorical', 
             weight_prior: str     = 'normal', 
             intercept_prior: str  = 'normal',
-            burn_in: int          = 100,
-            max_iter: int         = 100,
+            burn_in: int          = 1000,
+            max_iter: int         = 1000,
             chains: int           = 4,
             seed: None|int        = None
         ):
@@ -66,10 +67,13 @@ class BayesLogisticRegression(BaseEstimator):
             weights = self.weight_prior('w', (self.n_categories, n_features))
             intercepts = self.intercept_prior('b', (self.n_categories,))
 
-            g_x = pm.math.dot(X, weights.T) + intercepts
             if self.n_categories < unique_categories:
-                zeros_col = pm.math.zeros((g_x.shape[0], 1))
-                g_x = pm.math.concatenate([g_x, zeros_col], axis=1)
+                zeros_w    = pm.math.zeros((1, weights.shape[1]))
+                zeros_b    = pm.math.zeros((1,))
+                weights    = pm.math.concatenate([zeros_w, weights], axis=0)
+                intercepts = pm.math.concatenate([zeros_b, intercepts], axis=0)
+
+            g_x = pm.math.dot(X, weights.T) + intercepts
 
             #pi_x = self.link(g_x)
             y_obs = self.likelihood('y_obs', logit_p=g_x, observed=Y)
@@ -94,5 +98,5 @@ class BayesLogisticRegression(BaseEstimator):
 
 
     def predict(self, X):
-        pi_x = predict_proba(self, X)
+        pi_x = self.predict_proba(X)
         return np.argmax(pi_x, axis=1)

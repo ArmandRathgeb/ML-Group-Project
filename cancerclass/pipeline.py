@@ -3,8 +3,9 @@ from sklearn.experimental import enable_iterative_imputer
 from cancerclass import utils
 from cancerclass import bayes
 from cancerclass.impute import DreamAIImputer
-from cancerclass.metrics import calculate_nrmse, calculate_f1, calculate_accuracy,run_masking_experiment
+from cancerclass.metrics import calculate_nrmse, calculate_f1, calculate_accuracy,run_masking_experiment, categorical_accuracy
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -12,8 +13,9 @@ from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, StandardSca
 from sklearn.impute import IterativeImputer, SimpleImputer
 from sklearn.pipeline import make_pipeline
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV, BayesianRidge
-from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegressionCV, SGDClassifier
+#from sklearn.svm import SVC
+from sklearn.metrics import confusion_matrix
 
 __imputation = {
     'none' : FunctionTransformer(utils.identity_transform),
@@ -30,11 +32,9 @@ __preprocessor = {
 
 __classification = {
     'naivebayes': MultinomialNB,
-    'elasticnet': ElasticNetCV,
     'logistic'  : LogisticRegressionCV,
     'bayeslog'  : bayes.BayesLogisticRegression,
-    'svm'       : SVC,
-    'bayesridge': BayesianRidge,
+    'svm'       : SGDClassifier,
 }
 
 __metrics = {
@@ -47,8 +47,7 @@ def train_pipeline(
         X: np.ndarray,
         Y: np.ndarray,
         imputation_type: str = 'dream',
-        return_imputed_data: bool = False,
-        preprocessing_step: str = '01',
+        preprocessing_step: str = 'standard',
         classifier: str = 'naivebayes',
         **classifier_kwargs
     ):
@@ -69,7 +68,7 @@ def accuracy(model, X_test: np.ndarray, Y_test: np.ndarray, metric: str):
 
     return metric(Y_pred, Y_test)
 
-def benchmark_methods(X_train, Y_train, X_test, Y_test, methods=['mean', 'dream']):
+def benchmark_methods(X_train, Y_train, X_test, Y_test, methods=['mean', 'dream'], **pipeline_args):
     """
     Runs Validation 1 (NRMSE) and Validation 2 (F1) for all methods
     and returns a clean comparison table.
@@ -88,7 +87,7 @@ def benchmark_methods(X_train, Y_train, X_test, Y_test, methods=['mean', 'dream'
         
         # Validation 2: Downstream Classification (F1)
         # Train full pipeline
-        model = train_pipeline(X_train, Y_train, imputation_type=method)
+        model = train_pipeline(X_train, Y_train, imputation_type=method, **pipeline_args)
         Y_pred = model.predict(X_test)
         f1 = calculate_f1(Y_test, Y_pred)
         
@@ -111,16 +110,56 @@ def benchmark_methods(X_train, Y_train, X_test, Y_test, methods=['mean', 'dream'
     
     return df_results
 
+def benchmark_classification(X_train, Y_train, X_test, Y_test, methods:list|None=None, **pipeline_args):
+    if methods == None:
+        methods = __classification.keys()
+    results = []
+    confusion_matrices = []
+    print(f"Running Benchmark on methods: {list(methods)}...")
+
+    # Precompute data imputation
+    if 'imputation_type' in pipeline_args:
+        imputer = __imputation[pipeline_args['imputation_type']]
+        imputer.fit(X_train)
+        X_train = imputer.transform(X_train)
+        X_test  = imputer.transform(X_test)
+        pipeline_args['imputation_type'] = 'none'
+
+    print("Pre-imputation done")
+
+    for method in methods:
+        print(f"Running {method}...")
+        model = train_pipeline(X_train, Y_train, classifier=method, **pipeline_args)
+        Y_trpred = model.predict(X_train)
+        Y_pred = model.predict(X_test)
+
+        F1 = calculate_f1(Y_test, Y_pred)
+        results.append({
+            'Method':            method.upper(),
+            'Classification F1': F1,
+            'Test accuracy':     categorical_accuracy(Y_pred, Y_test),
+            'Train accuracy':    categorical_accuracy(Y_trpred, Y_train),
+        })
+        confusion_matrices.append({
+            'Train Confusion':   confusion_matrix(Y_trpred, Y_train),
+            'Test Confusion':    confusion_matrix(Y_pred, Y_test),
+        })
+
+
+    df_results = pd.DataFrame(results).set_index('Method')
+    print(df_results)
+    return df_results, confusion_matrices
+
 def __heatmap(data: np.ndarray, ax, categories=False):
     sns.heatmap(data, ax=ax, vmin=0.0, vmax=1.0, cmap='bwr', annot=True, xticklabels=categories, yticklabels=False, fmt=".2f")
 
-def analysis_pipeline(model, data: tuple, metric: str, category_names: list):
+def analysis_pipeline(model, data: tuple, category_names: list):
     X_train,X_test,Y_train,Y_test = data
     categories = set(category_names)
-    Y_trainp = model.predict(X_train)[:,None]
-    Y_testp  = model.predict(X_test)[:,None]
-    train_accuracy = np.sum(Y_trainp == Y_train) / len(Y_train)
-    test_accuracy  = np.sum(Y_testp == Y_test) / len(Y_test)
+    Y_trainp = model.predict(X_train)
+    Y_testp  = model.predict(X_test)
+    train_accuracy = categorical_accuracy(Y_train, Y_trainp)
+    test_accuracy  = categorical_accuracy(Y_test, Y_testp)
     try: 
         train_prob = model.predict_proba(X_train)
         test_prob  = model.predict_proba(X_test)
@@ -128,13 +167,13 @@ def analysis_pipeline(model, data: tuple, metric: str, category_names: list):
         ax[0].set_title("Training confidence")
         __heatmap(train_prob, ax[0], categories)
         ax[1].set_title(f"Accuracy {train_accuracy*100}%")
-        __heatmap(Y_trainp == Y_train, ax[1])
+        __heatmap((Y_trainp == Y_train)[:,None], ax[1])
 
         fig,ax = plt.subplots(1,2, figsize=(10,12), gridspec_kw={'width_ratios': [4,1]})
         ax[0].set_title("Testing confidence")
         __heatmap(test_prob, ax[0], categories)
         ax[1].set_title(f"Accuracy {test_accuracy*100}%")
-        __heatmap(Y_testp == Y_test, ax[1])
+        __heatmap((Y_testp == Y_test)[:,None], ax[1])
 
     except Exception as e:
         print(f"Warning in probabilities: {e}")

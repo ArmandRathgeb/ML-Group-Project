@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import OrdinalEncoder, LabelEncoder
 
 def identity_transform(X):
     return X
@@ -23,7 +23,7 @@ def ohe_data(X) -> np.ndarray:
     Returns:
         np.ndarray: Encoded labels as integers
     """
-    enc = OrdinalEncoder()
+    enc = LabelEncoder()#OrdinalEncoder()
     X = ensure_numpy(X).reshape(-1, 1)
     return enc.fit_transform(X)
 

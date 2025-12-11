@@ -264,7 +264,7 @@ model = CancerClassificationTransformer(
 
 criterion = nn.CrossEntropyLoss(weight=weight_tensor)  # ← FIX: Use class weights
 optimizer = optim.Adam(model.parameters(), lr=0.0001)  # ← FIX: Lower learning rate
-# ✅ NEW (works on all versions):
+
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode='max', factor=0.5, patience=10
 )

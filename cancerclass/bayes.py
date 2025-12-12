@@ -40,6 +40,20 @@ class BayesLogisticRegression(BaseEstimator):
             chains: int           = 4,
             seed: None|int        = None
         ):
+        """Bayesian logistic regression.
+
+        Args:
+            n_categories (str | int, optional): Number of categories to classify. If 'auto', defaults to number of classes.
+                If < n_classes, appends a zero column and uses it as the baseline. Defaults to 'auto'.
+            link (str, optional): Link function ['softmax', 'logit']. Defaults to 'softmax'.
+            likelihood (str, optional): Likelihood function ['categorical', 'bernoulli']. Defaults to 'categorical'.
+            weight_prior (str, optional): Weight matrix prior ['normal', 'halfnormal', 'laplace', 'uniform']. Defaults to 'normal'.
+            intercept_prior (str, optional): Intercept matrix prior. Same options as `weight_prior`. Defaults to 'normal'.
+            burn_in (int, optional): Tuning before sampling in earnest. Defaults to 1000.
+            max_iter (int, optional): Maximum number of samples to draw. Defaults to 1000.
+            chains (int, optional): Number of inference chains to run. Helps with convergence. Defaults to 4.
+            seed (None | int, optional): Random seed. Defaults to None.
+        """
         self.link            = __links__[link]
         self.eval_link       = __eval_links__[link]
         self.likelihood      = __likelihoods__[likelihood]
@@ -58,6 +72,15 @@ class BayesLogisticRegression(BaseEstimator):
 
 
     def fit(self, X, Y):
+        """Fit model to data.
+
+        Args:
+            X: (n_samples, n_features): Input data.
+            Y: (n_samples,): Labels
+
+        Returns:
+            BayesLogisticRegression: Fitted model
+        """
         unique_categories = len(np.unique(Y))
         if self.n_categories == 'auto':
             self.n_categories = unique_categories
@@ -89,6 +112,14 @@ class BayesLogisticRegression(BaseEstimator):
         return self
 
     def predict_proba(self, X):
+        """Predict the probability of each class.
+
+        Args:
+            X: (n_samples, n_features): Input data.
+
+        Returns:
+            np.ndarray: (n_samples, n_classes): Probabilities of being each class.
+        """
         weights = self.post['w'].values
         intercepts = self.post['b'].values
         g_x = np.einsum('ij,kjs->iks', X, weights) + intercepts[None,...]
@@ -98,5 +129,13 @@ class BayesLogisticRegression(BaseEstimator):
 
 
     def predict(self, X):
+        """Predict which class each sample is.
+
+        Args:
+            X: (n_samples, n_features): Input data
+
+        Returns:
+            np.ndarray: (n_samples,): Predicted class
+        """
         pi_x = self.predict_proba(X)
         return np.argmax(pi_x, axis=1)
